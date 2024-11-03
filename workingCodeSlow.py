@@ -21,51 +21,45 @@ Left Shoulder Button     - Servo 1 to 90 degrees
 
 """
 
-import board  # Import board module for pin definitions
-import time  # Import time module for delays
-import pwmio  # Import PWM I/O module for PWM control
-import digitalio  # Import digital I/O module for digital pin control
-from adafruit_motor import servo  # Import servo module from Adafruit motor library
-from adafruit_simplemath import map_range, constrain  # Import map_range and constrain functions from Adafruit simplemath library
-from circuitpython_gizmo import Gizmo  # Import Gizmo class from circuitpython_gizmo library
+import board
+import time
+import pwmio
+import digitalio
+from adafruit_motor import servo
+from adafruit_simplemath import map_range, constrain
+from circuitpython_gizmo import Gizmo
 
-gizmo = Gizmo()  # Initialize Gizmo object
+gizmo = Gizmo()
 
-pwm_freq = 50  # Set PWM frequency to 50 Hertz
-min_pulse = 1000  # Set minimum pulse width to 1000 milliseconds
-max_pulse = 2000  # Set maximum pulse width to 2200 milliseconds
-servo_range = 360  # Set servo range to 180 degrees
+pwm_freq = 50
+min_pulse = 1000
+max_pulse = 2000
+servo_range = 360
 
-# Motor and Servo Setup
-# Left Motor
 motor_left = servo.ContinuousServo(
     pwmio.PWMOut(gizmo.MOTOR_1, frequency=pwm_freq),
     min_pulse=min_pulse,
     max_pulse=max_pulse
 )
-# Right Motor
-motor_right = servo.ContinuousServo(
-    pwmio.PWMOut(gizmo.MOTOR_2, frequency=pwm_freq),
-    min_pulse=min_pulse,
-    max_pulse=max_pulse
-)
 
-# Motor arm setup
-# Raise arm motor
-motor_task_raise_arm = servo.ContinuousServo(
-    pwmio.PWMOut(gizmo.MOTOR_3, frequency=pwm_freq),
-    min_pulse=min_pulse,
-    max_pulse=max_pulse
-)
-# Extend/retract arm motor
-motor_task_arm_extension_retraction = servo.ContinuousServo(
+motor_right = servo.ContinuousServo(
     pwmio.PWMOut(gizmo.MOTOR_4, frequency=pwm_freq),
     min_pulse=min_pulse,
     max_pulse=max_pulse
 )
 
-# Servos setup
-# Habitat modules dropper servo
+motor_task_raise_arm = servo.ContinuousServo(
+    pwmio.PWMOut(gizmo.MOTOR_3, frequency=pwm_freq),
+    min_pulse=min_pulse,
+    max_pulse=max_pulse
+)
+
+motor_task_arm_extension_retraction = servo.ContinuousServo(
+    pwmio.PWMOut(gizmo.MOTOR_2, frequency=pwm_freq),
+    min_pulse=min_pulse,
+    max_pulse=max_pulse
+)
+
 servo_task_habitat_modules_dropper = servo.Servo(
     pwmio.PWMOut(gizmo.SERVO_1, frequency=pwm_freq),
     actuation_range=servo_range,
@@ -73,110 +67,77 @@ servo_task_habitat_modules_dropper = servo.Servo(
     max_pulse=max_pulse
 )
 
-# Claw open and close servo
 servo_task_claw_open_and_close = servo.Servo(
     pwmio.PWMOut(gizmo.SERVO_2, frequency=pwm_freq),
     actuation_range=servo_range,
     min_pulse=min_pulse,
     max_pulse=max_pulse
 )
-# 
-# Bumper switches setup
-# Bumper switch inside the claw
-bumper_in_claw = digitalio.DigitalInOut(gizmo.GPIO_1)
 
-bumper_in_claw.switch_to_input()
+servo_SeatBelt = servo.Servo(
+    pwmio.PWMOut(gizmo.SERVO_3, frequency=pwm_freq),
+    actuation_range=servo_range,
+    min_pulse=min_pulse,
+    max_pulse=max_pulse
+)
 
-# Bumper switch for wall detection
-bumper_for_wall = digitalio.DigitalInOut(gizmo.GPIO_2)
-bumper_for_wall.switch_to_input()
-
-# Bumper switch for arm in position
-bumper_arm_in = digitalio.DigitalInOut(gizmo.GPIO_3)
-bumper_arm_in.switch_to_input()
-
-# Bumper switch for arm out position
-bumper_arm_out = digitalio.DigitalInOut(gizmo.GPIO_4)
-bumper_arm_out.switch_to_input()
-
-# Bumper switch for arm down position
-bumper_arm_down = digitalio.DigitalInOut(gizmo.GPIO_5)
-bumper_arm_down.switch_to_input()
-
-# Configure the built-in LED pin as an output
 builtin_led = digitalio.DigitalInOut(board.GP25)
 builtin_led.direction = digitalio.Direction.OUTPUT
 
-# Modes setup
-TANK_MODE = 0  # Define constant for Tank Mode
-ARCADE_MODE = 1  # Define constant for Arcade Mode
-SPLIT_ARCADE = 2  # Define constant for Split Arcade Mode
+TANK_MODE = 0
+ARCADE_MODE = 1
 
-mode = TANK_MODE  # Set default starting mode to Tank Mode
-autonomus_runing = False  # Initialize autonomous running flag
-arm_sensors = False  # Initialize arm sensors flag
-prev_mode_button = False  # Initialize previous mode button state
-prev_back_button = False  # Initialize previous back button state
+seatbeltDown = False
+
+mode = TANK_MODE
+arm_sensors = False
+prev_mode_button = False
+prev_back_button = False
 prev_b_button = False
 
-precice = False
-precision_precent = 1
 
 modules_dropped = False
-modules_close = 0
-modules_open = 180
+modules_close = 360
+modules_open = 0
 
-claw_is_closed = False  # Initialize claw state
-claw_close_angle = 0  # Define claw close angle
-claw_open_angle = 360  # Define claw open angle
+Jiggle_Count = 0
+
+claw_is_closed = False
+claw_close_angle = 0
+claw_open_angle = 360
 
 print("Program started")
 while True:
-    builtin_led.value = not builtin_led.value  # Toggle the built-in LED state
+    builtin_led.value = not builtin_led.value
 
-    gizmo.refresh()  # Refresh the Gizmo object to get the latest inputs
+    gizmo.refresh()
 
-    if gizmo.buttons.b and not prev_b_button:
-        if precice == True:
-            precice = False
-            precision_precent = 1
-        else:
-            precice = True
-            precision_precent = .5
-    prev_b_button = gizmo.buttons.b 
-
-    # Check if the back button is pressed to switch modes
     if gizmo.buttons.back and not prev_mode_button:
-        mode = ARCADE_MODE if mode == TANK_MODE else TANK_MODE  # Toggle between Tank Mode and Arcade Mode
+        mode = ARCADE_MODE if mode == TANK_MODE else TANK_MODE
         print(f"Mode changed to {'ARCADE_MODE' if mode == ARCADE_MODE else 'TANK_MODE'}")
-    prev_mode_button = gizmo.buttons.back  # Update previous mode button state
+    prev_mode_button = gizmo.buttons.back
 
-    # Control motors based on the current mode
     if mode == TANK_MODE:
-        motor_left.throttle = map_range(gizmo.axes.left_y, 0, 255, 1.0, -1.0)  *precision_precent # Map left joystick Y-axis to left motor throttle
-        motor_right.throttle = map_range(gizmo.axes.right_y, 0, 255, -1.0, 1.0) *precision_precent # Map right joystick Y-axis to right motor throttle
-
-
+        motor_left.throttle = map_range(gizmo.axes.left_y, 0, 255, 1.0, -1.0)
+        motor_right.throttle = map_range(gizmo.axes.right_y, 0, 255, -1.0, 1.0)
 
     elif mode == ARCADE_MODE:
-        speed = map_range(gizmo.axes.right_x, 0, 255, 1.0, -1.0)  # Map left joystick Y-axis to speed
-        steering = map_range(gizmo.axes.right_y, 0, 255, -1.0, 1.0)  # Map left joystick X-axis to steering
-        motor_left.throttle = constrain(speed - steering, 1.0, -1.0) *precision_precent # Calculate left motor throttle based on speed and steering
-        motor_right.throttle = constrain(speed + steering, 1.0, -1.0)*precision_precent  # Calculate right motor throttle based on speed and steering
-    
-    elif mode == SPLIT_ARCADE:
-        speed = map_range(gizmo.axes.right_y, 0, 255, -1.0, 1.0)
-        steering = map_range(gizmo.axes.left_x, 0, 255, -1.0, 1.0)
-        motor_left.throttle = constrain(speed - steering, -1.0, 1.0)
-        motor_right.throttle = constrain(speed + steering, -1.0, 1.0)
+        speed = map_range(gizmo.axes.right_x, 0, 255, 1.0, -1.0)
+        steering = map_range(gizmo.axes.right_y, 0, 255, -1.0, 1.0)
+        motor_left.throttle = constrain(speed - steering, 1.0, -1.0)
+        motor_right.throttle = constrain(speed + steering, 1.0, -1.0)
    
     # Raise and lower arm motor controlarm
     if gizmo.buttons.left_shoulder:
         print("Left shoulder pressed")
         motor_task_raise_arm.throttle = 1.0  # Raise arm
+        servo_SeatBelt.angle = 180
+        print("Seatbelt activated")
     elif gizmo.buttons.left_trigger:
         print("Left trigger pressed")
         motor_task_raise_arm.throttle = -1.0  # Lower arm
+        servo_SeatBelt.angle = 180
+        print("Seatbelt activated")
     else:
         motor_task_raise_arm.throttle = 0.0  # or 0.0, keep the arm raised (hopefully)
 
@@ -216,10 +177,23 @@ while True:
     print("Button y pressed - Modules dropped")
     prev_y_button = gizmo.buttons.y
 
-    # Check if the start button is pressed to enable autonomous running
     if gizmo.buttons.start and not prev_start_button:
-        autonomus_runing = True  # Enable autonomous running
-        print("Autonomous running enabled")
-    prev_start_button = gizmo.buttons.start  # Update previous start button state
+        if prev_start_button:
+            servo_SeatBelt.angle = 180
+            prev_start_button = False
+            print("Seatbelt down")
+        else:
+            servo_SeatBelt.angle = 180
+            prev_start_button = True
+            print("Start button pressed - Seatbelt down")
+    prev_start_button = gizmo.buttons.start
+    print("Start button pressed - Seatbelt down")
+    prev_start_button = gizmo.buttons.start
+    
+    if gizmo.buttons.a:
+        motor_task_raise_arm.throttle = 1
+        time.sleep(.2)
+        motor_task_raise_arm.throttle = -0.5
+        time.sleep(.2)
 
-    time.sleep(0.01)  # Tiny delay to prevent crashing the Gizmo board and overheating it
+    time.sleep(0.01)
